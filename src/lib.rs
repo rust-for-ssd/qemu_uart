@@ -65,7 +65,7 @@ macro_rules! uprint{
         {
             let mut uart = qemu_uart::Uart::new(0x10000000, 5, 0x20);
             let _guard = qemu_uart::UART_PRINT_LOCK.lock();
-            write!(&mut uart, $($arg)*);
+            let _ = write!(&mut uart, $($arg)*);
         }
     }};
 }
@@ -76,7 +76,7 @@ macro_rules! uprintln{
         {
             let mut uart = qemu_uart::Uart::new(0x10000000, 5, 0x20);
             let _guard = qemu_uart::UART_PRINT_LOCK.lock();
-            writeln!(&mut uart, $($arg)*);
+            let _ = writeln!(&mut uart, $($arg)*);
         }
     }};
 }
