@@ -76,7 +76,7 @@ pub extern "Rust" fn user_mp_hook(hartid: usize) -> bool {
     }
 }
 
-use qemu_uart::Uart as urt;
+use qemu_uart::{uprint, uprintln};
 
 #[entry]
 fn main(hartid: usize) -> ! {
@@ -84,12 +84,9 @@ fn main(hartid: usize) -> ! {
         set_flag();
     }
     let id = hartid;
-    let mut urt = urt::new(0x10000000, 5, 0x20);
 
     for _i in 0..10 {
-        let _guard = LOCK.lock();
-
-        let _ = writeln!(urt, "THIS IS WRITE from {}!", id);
+        uprint!("This is from uprint! {}\n", id);
     }
     loop {}
 }

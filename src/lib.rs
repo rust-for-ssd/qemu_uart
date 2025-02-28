@@ -57,6 +57,30 @@ impl core::fmt::Write for Uart {
     }
 }
 
+pub static UART_PRINT_LOCK: Spinlock = Spinlock::new();
+
+#[macro_export]
+macro_rules! uprint{
+    ($($arg:tt)*) => {{
+        {
+            let mut uart = qemu_uart::Uart::new(0x10000000, 5, 0x20);
+            let _guard = qemu_uart::UART_PRINT_LOCK.lock();
+            write!(&mut uart, $($arg)*);
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! uprintln{
+    ($($arg:tt)*) => {{
+        {
+            let mut uart = qemu_uart::Uart::new(0x10000000, 5, 0x20);
+            let _guard = qemu_uart::UART_PRINT_LOCK.lock();
+            writeln!(&mut uart, $($arg)*);
+        }
+    }};
+}
+
 use core::sync::atomic::{AtomicBool, Ordering};
 
 pub struct Spinlock {
