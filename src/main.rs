@@ -83,10 +83,8 @@ fn main(hartid: usize) -> ! {
     if hartid == 0 {
         set_flag();
     }
-    let id = hartid;
-
     for _i in 0..10 {
-        uprintln!("This is from uprint! {}", id);
+        uprintln!("This is from uprint! {}", hartid);
     }
     loop {}
 }
