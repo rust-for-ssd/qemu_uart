@@ -5,6 +5,7 @@ use core::cell::RefCell;
 
 use critical_section::Mutex;
 
+#[non_exhaustive]
 pub enum UARTError {
     NonEmptyLSR,
 }
