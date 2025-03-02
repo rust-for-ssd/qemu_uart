@@ -1,10 +1,19 @@
 #![no_std]
 #![no_main]
 
-static UART_LOCK: Spinlock = Spinlock::new();
+use core::cell::RefCell;
+
+use critical_section::Mutex;
 
 pub enum UARTError {
     NonEmptyLSR,
+}
+
+pub struct QemuUart {
+    base: usize,
+    thr: *mut u8,
+    lsr: *mut u8,
+    lsr_empty_mask: u8,
 }
 
 // The following info is specific to the Qemu virt machine.
@@ -13,22 +22,23 @@ pub enum UARTError {
 // https://opensocdebug.readthedocs.io/en/latest/02_spec/07_modules/dem_uart/uartspec.html
 
 pub struct Uart {
-    base: usize,
-    thr: *mut u8,
-    lsr: *mut u8,
-    lsr_empty_mask: u8,
+    pub uart: Mutex<RefCell<QemuUart>>,
 }
 
 impl Uart {
     pub fn new(base: usize, lsr_offset: usize, lsr_empty_mask: u8) -> Self {
         Self {
-            base,
-            thr: base as *mut u8,
-            lsr: (base + lsr_offset) as *mut u8,
-            lsr_empty_mask,
+            uart: Mutex::new(RefCell::new(QemuUart {
+                base,
+                thr: base as *mut u8,
+                lsr: (base + lsr_offset) as *mut u8,
+                lsr_empty_mask,
+            })),
         }
     }
+}
 
+impl QemuUart {
     fn try_write_byte(&self, byte: u8) -> Result<(), UARTError> {
         let is_lsr_empty =
             (unsafe { core::ptr::read_volatile(self.lsr) } & self.lsr_empty_mask) != 0;
@@ -44,28 +54,24 @@ impl Uart {
     }
 }
 
-impl core::fmt::Write for Uart {
+impl core::fmt::Write for QemuUart {
     fn write_str(&mut self, s: &str) -> Result<(), core::fmt::Error> {
-        let lock = UART_LOCK.lock();
-
         for byte in s.bytes() {
             while let Err(_) = self.try_write_byte(byte) {}
         }
-        // Unlock lock
-        drop(lock);
+
         Ok(())
     }
 }
-
-pub static UART_PRINT_LOCK: Spinlock = Spinlock::new();
 
 #[macro_export]
 macro_rules! uprint{
     ($($arg:tt)*) => {{
         {
             let mut uart = qemu_uart::Uart::new(0x10000000, 5, 0x20);
-            let _guard = qemu_uart::UART_PRINT_LOCK.lock();
-            let _ = write!(&mut uart, $($arg)*);
+            critical_section::with(|cs| {
+                let _ = write!(uart.uart.borrow(cs).borrow_mut(), $($arg)*);
+            });
         }
     }};
 }
@@ -75,47 +81,9 @@ macro_rules! uprintln{
     ($($arg:tt)*) => {{
         {
             let mut uart = qemu_uart::Uart::new(0x10000000, 5, 0x20);
-            let _guard = qemu_uart::UART_PRINT_LOCK.lock();
-            let _ = writeln!(&mut uart, $($arg)*);
+            critical_section::with(|cs| {
+                let _ = writeln!(uart.uart.borrow(cs).borrow_mut(), $($arg)*);
+            });
         }
     }};
 }
-
-use core::sync::atomic::{AtomicBool, Ordering};
-
-pub struct Spinlock {
-    locked: AtomicBool,
-}
-
-impl Spinlock {
-    pub const fn new() -> Self {
-        Spinlock {
-            locked: AtomicBool::new(false),
-        }
-    }
-
-    pub fn lock(&self) -> SpinlockGuard {
-        loop {
-            match self
-                .locked
-                .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-            {
-                Ok(_) => break,
-                Err(_) => continue,
-            }
-        }
-        SpinlockGuard { lock: self }
-    }
-}
-
-pub struct SpinlockGuard<'a> {
-    lock: &'a Spinlock,
-}
-
-impl<'a> Drop for SpinlockGuard<'a> {
-    fn drop(&mut self) {
-        self.lock.locked.store(false, Ordering::Release);
-    }
-}
-
-unsafe impl Sync for Spinlock {}

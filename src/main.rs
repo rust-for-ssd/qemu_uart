@@ -4,48 +4,7 @@
 use core::fmt::Write;
 
 use core::sync::atomic::{AtomicBool, Ordering};
-
-pub struct Spinlock {
-    locked: AtomicBool,
-}
-
-impl Spinlock {
-    pub const fn new() -> Self {
-        Spinlock {
-            locked: AtomicBool::new(false),
-        }
-    }
-
-    #[inline(never)]
-    #[unsafe(no_mangle)]
-    pub fn lock(&self) -> SpinlockGuard {
-        loop {
-            match self
-                .locked
-                .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-            {
-                Ok(_) => break,
-                Err(_) => continue,
-            }
-        }
-        SpinlockGuard { lock: self }
-    }
-}
-
-pub struct SpinlockGuard<'a> {
-    lock: &'a Spinlock,
-}
-
-impl<'a> Drop for SpinlockGuard<'a> {
-    #[unsafe(no_mangle)]
-    fn drop(&mut self) {
-        self.lock.locked.store(false, Ordering::Release);
-    }
-}
-
-unsafe impl Sync for Spinlock {}
-
-static LOCK: Spinlock = Spinlock::new();
+use multi_hart_critical_section as _;
 
 extern crate panic_halt;
 
@@ -83,8 +42,9 @@ fn main(hartid: usize) -> ! {
     if hartid == 0 {
         set_flag();
     }
-    for _i in 0..10 {
-        uprintln!("This is from uprint! {}", hartid);
+    for i in 0..5 {
+        uprint!("This is from uprint! HID: {}, i: {} **\n", hartid, i);
+        uprintln!("This is from uprintln! HID: {}, i: {}", hartid, i);
     }
     loop {}
 }
