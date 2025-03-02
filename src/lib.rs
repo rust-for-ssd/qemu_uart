@@ -5,6 +5,15 @@ use core::cell::RefCell;
 
 use critical_section::Mutex;
 
+pub static mut UART: Uart = Uart {
+    uart: Mutex::new(RefCell::new(QemuUart {
+        base: 0x10000000,
+        thr: 0x10000000 as *mut u8,
+        lsr: 0x10000005 as *mut u8,
+        lsr_empty_mask: 0x20,
+    })),
+};
+
 #[non_exhaustive]
 pub enum UARTError {
     NonEmptyLSR,
@@ -69,7 +78,7 @@ impl core::fmt::Write for QemuUart {
 macro_rules! uprint{
     ($($arg:tt)*) => {{
         {
-            let mut uart = qemu_uart::Uart::new(0x10000000, 5, 0x20);
+            let mut uart = unsafe {&qemu_uart::UART};
             critical_section::with(|cs| {
                 let _ = write!(uart.uart.borrow(cs).borrow_mut(), $($arg)*);
             });
@@ -81,7 +90,7 @@ macro_rules! uprint{
 macro_rules! uprintln{
     ($($arg:tt)*) => {{
         {
-            let mut uart = qemu_uart::Uart::new(0x10000000, 5, 0x20);
+            let mut uart = unsafe {&qemu_uart::UART};
             critical_section::with(|cs| {
                 let _ = writeln!(uart.uart.borrow(cs).borrow_mut(), $($arg)*);
             });
