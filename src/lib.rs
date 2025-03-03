@@ -20,10 +20,10 @@ pub enum UARTError {
 }
 
 pub struct QemuUart {
-    base: usize,
-    thr: *mut u8,
-    lsr: *mut u8,
-    lsr_empty_mask: u8,
+    pub base: usize,
+    pub thr: *mut u8,
+    pub lsr: *mut u8,
+    pub lsr_empty_mask: u8,
 }
 
 // The following info is specific to the Qemu virt machine.
@@ -69,31 +69,23 @@ impl core::fmt::Write for QemuUart {
         for byte in s.bytes() {
             while let Err(_) = self.try_write_byte(byte) {}
         }
+        while (unsafe { core::ptr::read_volatile(self.lsr) } & self.lsr_empty_mask) == 0 {}
 
         Ok(())
     }
 }
 
+// Needs a critical section to execute
 #[macro_export]
-macro_rules! uprint{
-    ($($arg:tt)*) => {{
-        {
-            let mut uart = unsafe {&qemu_uart::UART};
-            critical_section::with(|cs| {
-                let _ = write!(uart.uart.borrow(cs).borrow_mut(), $($arg)*);
-            });
-        }
-    }};
-}
-
-#[macro_export]
-macro_rules! uprintln{
-    ($($arg:tt)*) => {{
-        {
-            let mut uart = unsafe {&qemu_uart::UART};
-            critical_section::with(|cs| {
-                let _ = writeln!(uart.uart.borrow(cs).borrow_mut(), $($arg)*);
-            });
+macro_rules! csprintln {
+    ($cs:expr, $($arg:tt)*) => {{
+        use core::fmt::Write;
+        let uart = &raw const UART;
+        unsafe {
+            let _ = (*uart)
+                .uart
+                .borrow_ref_mut($cs)
+                .write_fmt(format_args!("{}\n", format_args!($($arg)*)));
         }
     }};
 }
