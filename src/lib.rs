@@ -89,3 +89,17 @@ macro_rules! csprintln {
         }
     }};
 }
+
+#[macro_export]
+macro_rules! unsafeprintln {
+    ($($arg:tt)*) => {{
+        use core::fmt::Write;
+        let mut uart = qemu_uart::QemuUart {
+            base: 0x10000000,
+            thr: 0x10000000 as *mut u8,
+            lsr: 0x10000005 as *mut u8,
+            lsr_empty_mask: 0x20,
+        };
+        let _= uart.write_fmt(format_args!("{}\n", format_args!($($arg)*)));
+    }};
+}

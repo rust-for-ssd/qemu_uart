@@ -35,7 +35,7 @@ pub extern "Rust" fn user_mp_hook(hartid: usize) -> bool {
     }
 }
 
-use qemu_uart::{uprint, uprintln};
+use qemu_uart::unsafeprintln;
 
 #[entry]
 fn main(hartid: usize) -> ! {
@@ -43,8 +43,8 @@ fn main(hartid: usize) -> ! {
         set_flag();
     }
     for i in 0..5 {
-        uprint!("This is from uprint! HID: {}, i: {} **\n", hartid, i);
-        uprintln!("This is from uprintln! HID: {}, i: {}", hartid, i);
+        unsafeprintln!("This is from uprint! HID: {}, i: {} **\n", hartid, i);
+        unsafeprintln!("This is from uprintln! HID: {}, i: {}", hartid, i);
     }
     loop {}
 }
